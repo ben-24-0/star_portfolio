@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Text Particles</title>
+    <meta property="og:title" content="Text Particles" />
+    <meta property="og:description" content="Interactive noir-style text particles" />
+    <meta property="og:image" content="https://example.com/images/text-preview.png" />
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Hidden input to maintain compatibility with the code -->
+        <input type="text" id="text-input" value="Benson" style="display: none;">
+        <button id="start-button">Let's Start</button>
+        <canvas id="canvas"></canvas>
+        <!-- Hidden canvas for text processing -->
+        <canvas id="textCanvas" style="display:none;"></canvas>
+    </div>
+    
+    <div id="info-box">
+        <div class="info-header">
+            <span>Use your mouse to interact with the text.</span>
+            <a href="javascript:void(0);" id="close-info">close</a>
+        </div>
+        <div class="info-content">
+            Move your cursor through the particles to see them react.
+        </div>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>
