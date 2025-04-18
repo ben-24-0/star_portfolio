@@ -38,11 +38,16 @@ let animationState = 'random'; // 'random', 'forming', 'formed'
 let animationStartTime = 0;
 const FORMATION_DURATION = 1500; // Time in ms for particles to form text
 
+// Text display settings
+let showAdditionalText = false;
+const additionalText = "Hey I'm";
+let textOpacity = 0;
+
 // Particles array
 let particles = [];
 
 // Define target particle count
-const TARGET_PARTICLE_COUNT = 2500;
+const TARGET_PARTICLE_COUNT = 1200; // Reduced from 2500 to 1200
 
 // Particle class
 class Particle {
@@ -143,50 +148,87 @@ function initText() {
     // Clear the text canvas
     textCtx.clearRect(0, 0, cw, ch);
     
-    // Calculate optimal font size
-    let fontSize = 200;
-    let wordWidth = 0;
+    // Calculate optimal font size - starting much smaller to ensure full visibility
+    let fontSize = 140; // Starting with a significantly smaller size
     textCtx.textAlign = 'center';
     textCtx.textBaseline = 'middle';
     
-    do {
-        wordWidth = 0;
-        fontSize -= 5;
-        textCtx.font = `bold ${fontSize}px "Times New Roman", serif`;
-        const width = textCtx.measureText("Benson").width;
-        if (width > wordWidth) wordWidth = width;
-    } while (wordWidth > cw - 100 || fontSize > ch - 100);
+    // Set a fixed, safe font size with generous margins
+    textCtx.font = `bold ${fontSize}px "Times New Roman", serif`;
+    console.log(`Using fixed font size: ${fontSize}px for reliable rendering`);
     
-    // Draw text to hidden canvas
+    // Draw text to hidden canvas - positioned much higher to avoid bottom cutoff
     textCtx.fillStyle = 'white';
-    textCtx.fillText("Benson", cw / 2, ch / 2);
+    textCtx.fillText("Benson", cw / 2, ch / 2 - fontSize * 0.25); // Shifted up significantly
     
     // Get pixel data from text
     const imageData = textCtx.getImageData(0, 0, cw, ch);
     
-    // Collect valid pixels (where text is drawn)
-    const validPixels = [];
+    // Find text boundaries to ensure we have the complete text
+    let minX = cw, minY = ch, maxX = 0, maxY = 0;
+    let hasPixels = false;
     for (let y = 0; y < ch; y++) {
         for (let x = 0; x < cw; x++) {
             const index = (y * cw + x) * 4;
             if (imageData.data[index + 3] > 128) {
-                validPixels.push({ x, y });
+                hasPixels = true;
+                minX = Math.min(minX, x);
+                minY = Math.min(minY, y);
+                maxX = Math.max(maxX, x);
+                maxY = Math.max(maxY, y);
             }
         }
     }
     
-    // Sample pixels based on target count
-    particles = [];
-    const samplingRate = Math.max(1, Math.floor(validPixels.length / TARGET_PARTICLE_COUNT));
+    if (!hasPixels) {
+        console.error("No text pixels found! Please try again.");
+        return;
+    }
     
-    for (let i = 0; i < validPixels.length; i += samplingRate) {
-        const { x, y } = validPixels[i];
-        particles.push(new Particle(x, y));
+    console.log(`Text boundaries: (${minX},${minY}) to (${maxX},${maxY}), height: ${maxY - minY}px, width: ${maxX - minX}px`);
+    
+    // Create grid for even distribution
+    const GRID_SIZE = 5; // Size of each grid cell (5x5 pixels)
+    const grid = {};
+    const validCells = [];
+    
+    // Collect valid pixels, organizing them into grid cells
+    for (let y = 0; y < ch; y++) {
+        for (let x = 0; x < cw; x++) {
+            const index = (y * cw + x) * 4;
+            if (imageData.data[index + 3] > 128) {
+                // Calculate grid cell
+                const cellX = Math.floor(x / GRID_SIZE);
+                const cellY = Math.floor(y / GRID_SIZE);
+                const cellKey = `${cellX},${cellY}`;
+                
+                // Track occupied cells
+                if (!grid[cellKey]) {
+                    grid[cellKey] = true;
+                    validCells.push({
+                        x: cellX * GRID_SIZE + GRID_SIZE / 2,
+                        y: cellY * GRID_SIZE + GRID_SIZE / 2
+                    });
+                }
+            }
+        }
+    }
+    
+    // Create particles from valid cells
+    particles = [];
+    
+    // Make sure we don't exceed our target count
+    const cellCount = validCells.length;
+    const useEvery = Math.max(1, Math.floor(cellCount / TARGET_PARTICLE_COUNT));
+    
+    // Create particles from the grid cells for even distribution
+    for (let i = 0; i < validCells.length; i += useEvery) {
+        particles.push(new Particle(validCells[i].x, validCells[i].y));
         
         if (particles.length >= TARGET_PARTICLE_COUNT) break;
     }
     
-    console.log(`Created ${particles.length} particles`);
+    console.log(`Created ${particles.length} evenly distributed particles from ${validCells.length} grid cells`);
 }
 
 // Start formation animation when button is clicked
@@ -200,6 +242,7 @@ function startFormation() {
     animationState = 'forming';
     animationStartTime = Date.now();
     startBtn.classList.add('hidden');
+    showAdditionalText = true; // Enable the additional text
 }
 
 // Animation loop
@@ -233,9 +276,13 @@ function animate(timestamp) {
             // Update particles with interpolation
             particles.forEach(p => p.updateForming(easedProgress));
             
+            // Fade in the additional text during formation
+            textOpacity = easedProgress;
+            
             // Check if animation is complete
             if (progress >= 1.0) {
                 animationState = 'formed';
+                textOpacity = 1.0; // Ensure text is fully visible
             }
         } 
         else if (animationState === 'formed') {
@@ -245,10 +292,40 @@ function animate(timestamp) {
         
         // Draw all particles
         particles.forEach(p => p.draw());
+        
+        // Draw additional text if enabled
+        if (showAdditionalText) {
+            drawAdditionalText();
+        }
     }
     
     // Continue animation loop
     requestAnimationFrame(animate);
+}
+
+// Draw the additional text
+function drawAdditionalText() {
+    ctx.save();
+    
+    // Calculate text position - centered horizontally, closer to the main text
+    const textY = ch / 2.8; // Position closer to Benson (changed from ch/3.5)
+    
+    // Set text properties
+    ctx.font = `bold 60px "Space Mono", "Courier New", monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    // Create glow effect
+    ctx.shadowColor = 'rgba(255, 255, 255, 0.7)';
+    ctx.shadowBlur = 10;
+    
+    // Set text color with opacity for fade-in effect
+    ctx.fillStyle = `rgba(255, 255, 255, ${textOpacity})`;
+    
+    // Draw the text
+    ctx.fillText(additionalText, cw / 2, textY);
+    
+    ctx.restore();
 }
 
 // Resize handler
